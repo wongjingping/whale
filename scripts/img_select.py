@@ -9,7 +9,6 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from re import search
 from random import sample, random
-from sklearn.cross_validation import train_test_split
 from numpy import empty, asarray, ones, zeros, concatenate, int32
 from numpy.random import RandomState
 import theano
