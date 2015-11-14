@@ -150,7 +150,7 @@ def load_data(p_test=0.3):
 		y[i] = y_all[si]
 		if i%1000 == 0:
 			print('Reading row %i' % i)
-	X = X/255.
+
 	break_i = int((1-p_test)*nrow/100)*100
 	X_train = asarray(X)[:break_i,]
 	X_test = asarray(X)[break_i:,]
