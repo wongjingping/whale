@@ -1,5 +1,5 @@
 
-
+from glob import glob
 from cPickle import load
 import pandas as pd
 from PIL import Image
@@ -15,7 +15,7 @@ path_img = '/Users/JP/Documents/whale/imgs/'
 
 # load model
 print('... Loading Convolutional Network ...')
-with open(path_img+'select/models/conv_3_3_3_30_2_0.03_0.005_150_100.pkl') as f:
+with open(path_img+'select/models/conv_3_3_3_20_2_0.03_0.005_250_200.pkl') as f:
 	model = load(f)
 predict = build_model(model)
 
@@ -77,6 +77,7 @@ def save_wrong(fname, probs, x, y, threshold=0.5, w=5):
 	f_ = search('(w_[0-9]+)',fname).group(1)
 	for i in range(len(ix2)):
 		xi, yi = ix2[i]*10, iy2[i]*10
+		print(xi,yi)
 		thumb = im_sml.crop((xi,yi,xi+window_len,yi+window_len))
 		thumb.save(path_img+'select/wrong/'+f_+'_'+str(xi)+'_'+str(yi)+'.jpg')
 	print('saved ' + str(len(ix2)) + ' images, p > ' + str(threshold))
@@ -97,6 +98,55 @@ probs,x,y = plot_pred(fname, predict)
 
 train.to_csv(path_img+'data/train.csv', index=False)
 
+
+# label thumbs with coords
+def get_thumbs(i_start=0,i_end=train.shape[0]):
+	for idx in range(i_start, i_end):
+		t_open = time()
+		# slide over each w2*h2 region in steps of x_step, y_step
+		# and determine the probability of finding a whale. Take max
+		im = Image.open(fnames[idx])
+		im_sml = im.resize((w1,h1))
+		X = empty((nx*ny,w2*h2*3))
+		i = 0
+		for y in range(0,h1-window_len,y_step):
+			for x in range(0,w1-window_len,x_step):
+				sub_img = im_sml.crop((x,y,x+window_len,y+window_len))
+				X[i,] = asarray(sub_img).ravel()
+				i += 1
+		probs = predict(X/255.).reshape(ny,nx)
+		x,y = (probs.argmax()%nx)*x_step, (probs.argmax()/nx)*y_step
+		thumb = im_sml.crop((x,y,x+window_len,y+window_len))
+		f_ = search('(w_[0-9]+)',fnames[idx]).group(1)
+		thumb.save(path_img+'select/yes/'+f_+'_'+str(x)+'_'+str(y)+'.jpg')
+		print('File %s took %.1fs' % (f_,time()-t_open))
+
+# extract good coords from thumbs in select/yes/ folder
+def save_yes(savewrong=True,savecsv=True):
+	f_yes = glob(path_img+'select/yes/w_*.jpg')
+	for fname in f_yes:
+		t_1 = time()
+		f,x_,y_= search('(w_[0-9]+)_([0-9]+)_([0-9]+).jpg',fname).group(1,2,3)
+		x_,y_ = int(x_),int(y_)
+		if savewrong:
+			im = Image.open(fname)
+			im_sml = im.resize((w1,h1))
+			X = empty((nx*ny,w2*h2*3))
+			i = 0
+			for y in range(0,h1-window_len,y_step):
+				for x in range(0,w1-window_len,x_step):
+					sub_img = im_sml.crop((x,y,x+window_len,y+window_len))
+					X[i,] = asarray(sub_img).ravel()
+					i += 1
+			probs = predict(X/255.).reshape(ny,nx)
+			fname_orig = path_img+'raw/'+f+'.jpg'
+			save_wrong(fname_orig,probs,x_,y_,threshold=0.5,w=7)
+		train.loc[train.Image==(f+'.jpg'),['x','y']] = x_,y_
+		print('File %s took %.1fs' % (fname,time()-t_1))
+	if savecsv:
+		train.to_csv(path_img+'data/train.csv', index=False)
+
+# TODO manual checking of non-conforming pics
 
 
 # run this first before viz_image, viz_filters

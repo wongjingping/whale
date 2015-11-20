@@ -9,7 +9,7 @@ from theano.tensor.shared_randomstreams import RandomStreams
 from numpy import sqrt, asarray, zeros, mean, savetxt
 from numpy.random import RandomState
 
-arch = (3,3,3,30,2)
+arch = (3,3,3,40,2)
 img_shape = (100,100)
 field_size = (7,4)
 maxpool_size = (2,2)
@@ -30,7 +30,7 @@ final = False
 def train_convnet(
 	arch=(3,3,3,20,2), # input maps, C1 maps, C2 maps, MLP units, classes
 	img_shape=(100,100), field_size=(7,4), maxpool_size=(2,2),
-	r=0.03, d=0.005, p_dropout=0.5, epochs=150, batch_size=200, 
+	r=0.03, d=0.005, p_dropout=0.5, epochs=250, batch_size=100, 
 	rng=RandomState(290615), srng=RandomStreams(seed=290615),
 	save_par=True, print_freq=1, save_progress=True, final=False):
 
@@ -179,18 +179,19 @@ def train_convnet(
 	if save_par:
 		model_pars = [p.get_value() for p in par_all]
 		model_arch = (arch, img_shape, field_size, maxpool_size)
-		model_tune = (r, d, epochs, batch_size, rng)
+		model_tune = (r, d, epochs, batch_size, p_dropout, rng)
 		model = (model_pars, model_arch, model_tune)
 		fname = 'select/models/conv_'+'_'.join(str(a) for a in arch)+'_'+ \
-			'_'.join(str(a) for a in model_tune[:4])+'.pkl'
+			'_'.join(str(a) for a in model_tune[:5])+'.pkl'
 		with open(path_img + fname,'wb') as f:
 			dump(model,f)
 
 	# save progress
 	print('... Saving Progress ...')	
-	if save_progress:
+	if save_progress:		
+		model_tune = (r, d, epochs, batch_size, p_dropout, rng)
 		fname = 'select/models/conv_'+'_'.join(str(a) for a in arch)+'_'+ \
-			'_'.join(str(a) for a in model_tune[:4])+'.csv'
+			'_'.join(str(a) for a in model_tune[:5])+'.csv'
 		head = 'NLL_train,e_train,NLL_test,e_test'
 		savetxt(path_img+fname, progress, delimiter=',', header=head)
 	if not final:
@@ -285,10 +286,10 @@ if __name__ == 'main':
 	print('%.1fs elapsed' % (t_data-t_start))
 
 	# test dropout
-	p_drops = [0.5,0.7,1.0]
+	p_drops = [1.0,0.7,0.5]
 	res = []
 	for p_drop in p_drops:
-		(e_min, it_min) = train_convnet(arch=(3,3,3,30,2), print_freq=10, epochs=200)
+		(e_min, it_min) = train_convnet(arch=(3,3,3,40,2), print_freq=1, p_dropout=p_drop)
 		res.append((e_min, it_min))
 	
 	arch = (3,3,3,20,2)
