@@ -73,7 +73,7 @@ def plot_im(fname=None):
 	plt.suptitle(fname)
 	return im,fname
 
-def plot_crop(x, y, window_len = 100):
+def plot_crop(fname, x, y, window_len = 100):
 	im = Image.open(fname)
 	sub_img = im.resize((600,400)).crop((x,y,x+window_len,y+window_len))
 	plt.imshow(sub_img)

@@ -12,6 +12,7 @@ import pylab
 from detector_convnet import build_model
 
 path_img = '/Users/JP/Documents/whale/imgs/'
+path_img = '/Users/yc/Downloads/whale/imgs/'
 
 # load model
 print('... Loading Convolutional Network ...')
@@ -87,12 +88,13 @@ from img_select import savegood, plot_crop
 i = 400
 fname = fnames[i]
 probs,x,y = plot_pred(fname, predict)
-x,y = 260,190
-plot_crop(x,y)
+x,y = 310,240
+plot_crop(fname,x,y)
 savegood(fname,x,y)
-save_wrong(fname,probs,x,y,threshold=0.4,w=5)
+save_wrong(fname,probs,x,y,threshold=0.4,w=6)
 train.loc[i,['x','y']] = x,y
-i +=1
+#i +=1
+i = where(train['x'].isnull())[0][0]
 fname = fnames[i]
 probs,x,y = plot_pred(fname, predict)
 
@@ -146,7 +148,8 @@ def save_yes(savewrong=True,savecsv=True):
 	if savecsv:
 		train.to_csv(path_img+'data/train.csv', index=False)
 
-# TODO manual checking of non-conforming pics
+
+	
 
 
 # run this first before viz_image, viz_filters
