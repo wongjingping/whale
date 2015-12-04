@@ -1,13 +1,6 @@
 
-from glob import glob
-from cPickle import load
-import pandas as pd
-from PIL import Image
-from time import time
-from numpy import empty, asarray, where
-from re import search
-from matplotlib import pyplot as plt
-import pylab
+# this script contains functions for automating 
+# the building of the right/wrong dataset
 
 from detector_convnet import build_model
 

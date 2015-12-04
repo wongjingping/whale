@@ -2,17 +2,6 @@
 # this script prepares a dataset of 100x100x3 thumbnails
 # containing whales / not. 
 
-from glob import glob
-from os import remove
-from cPickle import dump
-from PIL import Image
-import matplotlib.pyplot as plt
-from re import search
-from random import sample, random
-from numpy import empty, asarray, ones, zeros, concatenate, int32
-from numpy.random import RandomState
-import theano
-import theano.tensor as T
 
 path_img = '/Users/JP/Documents/whale/imgs/'
 path_img = '/Users/yc/Downloads/whale/imgs/'

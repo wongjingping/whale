@@ -1,13 +1,6 @@
 
-from time import time
-from cPickle import dump
-import theano
-import theano.tensor as T
-from theano.tensor.nnet import conv
-from theano.tensor.signal import downsample
-from theano.tensor.shared_randomstreams import RandomStreams
-from numpy import sqrt, asarray, zeros, mean, savetxt
-from numpy.random import RandomState
+# this script builds a convnet for detecting if whale in thumb
+
 
 arch = (3,3,3,40,2)
 img_shape = (100,100)
