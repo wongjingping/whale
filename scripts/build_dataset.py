@@ -61,6 +61,7 @@ def plot_pred(fname, predict):
 	print('File %s took %.1fs' % (fname,time()-t_open))
 	return(probs, x, y)
 
+
 def save_wrong(fname, probs, x, y, threshold=0.5, w=5):
 	x,y = x/10,y/10
 	im = Image.open(fname)
