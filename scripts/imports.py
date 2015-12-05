@@ -1,16 +1,17 @@
 
 
 from glob import glob
-from os import remove
+import os
+import re
 from cPickle import dump, load
 from time import time
-from re import search
 from PIL import Image
 
 import matplotlib.pyplot as plt
 import pylab
 
 from random import sample, random
+import numpy as np
 from numpy import empty, asarray, ones, zeros, where, concatenate, \
 	int32, mean, savetxt, sqrt
 from numpy.random import RandomState
