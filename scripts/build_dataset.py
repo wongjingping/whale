@@ -1,13 +1,6 @@
 
-from glob import glob
-from cPickle import load
-import pandas as pd
-from PIL import Image
-from time import time
-from numpy import empty, asarray, where
-from re import search
-from matplotlib import pyplot as plt
-import pylab
+# this script contains functions for automating 
+# the building of the right/wrong dataset
 
 from detector_convnet import build_model
 
@@ -63,10 +56,11 @@ def plot_pred(fname, predict):
 	p3.set_title('Final Cropped Image')
 	plt.imshow(thumb)
 	plt.suptitle(fname+' spotted at '+str(x)+','+str(y))
-	# pylab.savefig(path_img+'thumbs/'+search('w_[0-9]*',fname).group()+'_diag.jpg')
+	# pylab.savefig(path_img+'thumbs/'+re.search('w_[0-9]*',fname).group()+'_diag.jpg')
 
 	print('File %s took %.1fs' % (fname,time()-t_open))
 	return(probs, x, y)
+
 
 def save_wrong(fname, probs, x, y, threshold=0.5, w=5):
 	x,y = x/10,y/10
@@ -75,7 +69,7 @@ def save_wrong(fname, probs, x, y, threshold=0.5, w=5):
 	iy, ix = where(probs > threshold)
 	ix2 = ix[~((x-w < ix) & (ix < x+w) & (y-w < iy) & (iy < y+w))]
 	iy2 = iy[~((x-w < ix) & (ix < x+w) & (y-w < iy) & (iy < y+w))]
-	f_ = search('(w_[0-9]+)',fname).group(1)
+	f_ = re.search('(w_[0-9]+)',fname).group(1)
 	for i in range(len(ix2)):
 		xi, yi = ix2[i]*10, iy2[i]*10
 		print(xi,yi)
@@ -119,7 +113,7 @@ def get_thumbs(i_start=0,i_end=train.shape[0]):
 		probs = predict(X/255.).reshape(ny,nx)
 		x,y = (probs.argmax()%nx)*x_step, (probs.argmax()/nx)*y_step
 		thumb = im_sml.crop((x,y,x+window_len,y+window_len))
-		f_ = search('(w_[0-9]+)',fnames[idx]).group(1)
+		f_ = re.search('(w_[0-9]+)',fnames[idx]).group(1)
 		thumb.save(path_img+'select/yes/'+f_+'_'+str(x)+'_'+str(y)+'.jpg')
 		print('File %s took %.1fs' % (f_,time()-t_open))
 
@@ -128,7 +122,7 @@ def save_yes(savewrong=True,savecsv=True):
 	f_yes = glob(path_img+'select/yes/w_*.jpg')
 	for fname in f_yes:
 		t_1 = time()
-		f,x_,y_= search('(w_[0-9]+)_([0-9]+)_([0-9]+).jpg',fname).group(1,2,3)
+		f,x_,y_= re.search('(w_[0-9]+)_([0-9]+)_([0-9]+).jpg',fname).group(1,2,3)
 		x_,y_ = int(x_),int(y_)
 		if savewrong:
 			im = Image.open(fname)
@@ -163,7 +157,7 @@ def save_yes(savewrong=True,savecsv=True):
 
 # visualizes 100*100 RGB image
 def viz_image(fname):
-	f_re = search('(w_[0-9]+)_([0-9]+)_([0-9]+).jpg',fname)
+	f_re = re.search('(w_[0-9]+)_([0-9]+)_([0-9]+).jpg',fname)
 	[f_,pos_x,pos_y] = [f_re.group(i) for i in range(1,4)]
 	im = Image.open(fname)
 	x = asarray(im).ravel()/255.

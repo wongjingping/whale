@@ -2,17 +2,7 @@
 # this script prepares a dataset of 100x100x3 thumbnails
 # containing whales / not. 
 
-from glob import glob
-from os import remove
-from cPickle import dump
-from PIL import Image
-import matplotlib.pyplot as plt
-from re import search
-from random import sample, random
-from numpy import empty, asarray, ones, zeros, concatenate, int32
-from numpy.random import RandomState
-import theano
-import theano.tensor as T
+import imports
 
 path_img = '/Users/JP/Documents/whale/imgs/'
 path_img = '/Users/yc/Downloads/whale/imgs/'
@@ -41,7 +31,7 @@ def generate_windows():
 			for y in range(0,len_y-window_len,200):
 				if random() > 0.1:
 					continue
-				fname_out = path_img+'select/'+search('w_[0-9]*',fname).group()+\
+				fname_out = path_img+'select/'+re.search('w_[0-9]*',fname).group()+\
 					'_'+str(x)+'_'+str(y)+'.jpg'
 				sub_img = im.crop((x,y,x+window_len,y+window_len))
 				sub_img.save(fname_out)
@@ -82,7 +72,7 @@ def plot_crop(fname, x, y, window_len = 100):
 # before training whale detector
 
 def savegood(fname, x, y, bnw = False, window_len = 100):
-	fname_out = path_img+'select/right/'+search('w_[0-9]*',fname).group()
+	fname_out = path_img+'select/right/'+re.search('w_[0-9]*',fname).group()
 	# nudge image: jittered images for each image
 	im = Image.open(fname)
 	im_sml = im.resize((600,400))
@@ -103,7 +93,7 @@ def savegood(fname, x, y, bnw = False, window_len = 100):
 
 
 def savenope(x, y, window_len = 100):
-	fname_out = path_img+'select/nope/'+search('w_[0-9]*',fname).group()+\
+	fname_out = path_img+'select/nope/'+re.search('w_[0-9]*',fname).group()+\
 	'_'+str(x)+'_'+str(y)+'_'
 	# nudge image : 5*5 jittered image for each image
 	im_sml = im.resize((600,400))
@@ -172,7 +162,7 @@ def save_right(shifts=2,window_len=100):
 	fnames = glob(path_img+'select/right/*jpg')
 	for fname in fnames:
 		im = Image.open(fname)
-		fname_out = path_img+'select/ok/'+search('w_[0-9]*',fname).group()+'_'
+		fname_out = path_img+'select/ok/'+re.search('w_[0-9]*',fname).group()+'_'
 		# nudge image : 2 jittered images for each image
 		im_sml = im.resize((window_len+shifts,window_len+shifts))
 		for i in range(shifts):
@@ -186,7 +176,7 @@ def save_wrong(shifts=3,window_len=100):
 	fnames = glob(path_img+'select/wrong/*jpg')
 	for fname in fnames:
 		im = Image.open(fname)
-		fname_out = path_img+'select/nope/'+search('w_[0-9]*',fname).group()+'_'
+		fname_out = path_img+'select/nope/'+re.search('w_[0-9]*',fname).group()+'_'
 		# nudge image : 2 jittered images for each image
 		im_sml = im.resize((window_len+shifts,window_len+shifts))
 		for i in range(shifts):
@@ -222,7 +212,7 @@ def rgb2bnw100x100(fnames):
 		im_sml = im.resize((100,100))
 		bnw_img = Image.fromarray(rgb2gray(im_sml,1.5,-0.5,0)).convert('RGB')
 		bnw_img.save(f[:-4]+'_fromcol.jpg')
-		remove(f)
+		os.remove(f)
 
 if(0):
 	rgb2bnw100x100(glob(path_img+'select/ok/*jpg'))
