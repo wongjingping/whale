@@ -2,13 +2,13 @@
 # this script builds a convnet for detecting if whale in thumb
 
 
-arch = (3,3,3,40,2)
+arch = (3,3,3,20,2)
 img_shape = (100,100)
 field_size = (7,4)
 maxpool_size = (2,2)
 r = 0.03
 d = 0.005
-p_dropout = 0.5
+p_dropout = 1
 epochs = 250
 batch_size = 100
 rng = RandomState(seed=290615)
@@ -55,7 +55,7 @@ def train_convnet(
 			input=C1,
 			ds=(maxpool_size[0],maxpool_size[0]), 
 			ignore_border=True)
-		A1 = T.tanh(M1 + C1_b.reshape((1,)+C1_b.shape+(1,1,)))
+		A1 = T.tanh(M1 + C1_b.dimshuffle('x',0,'x','x'))
 		C2_W = theano.shared(value=model_pars[2],name='C2_W')
 		C2_b = theano.shared(value=model_pars[3],name='C2_b')
 		C2 = conv.conv2d(input=A1, filters=C2_W)
@@ -63,9 +63,9 @@ def train_convnet(
 			input=C2,
 			ds=(maxpool_size[0],maxpool_size[0]), 
 			ignore_border=True)
-		A2 = T.tanh(M2 + C2_b.reshape((1,)+C2_b.shape+(1,1,)))
-		W3, b3, W4, b4 = model_pars[4:8]
-		A3 = T.tanh(T.dot(A2.flatten(2),W3) + b3)
+		A2 = T.tanh(M2 + C2_b.dimshuffle('x',0,'x','x'))
+		W3v, b3v, W4v, b4v = model_pars[4:8]
+
 	else:
 		# convolution layer 1
 		C1_shape = (arch[1],arch[0],field_size[0],field_size[0])
@@ -109,10 +109,11 @@ def train_convnet(
 		# tanh layer 2
 		A2 = T.tanh(M2 + C2_b.dimshuffle('x',0,'x','x'))
 		
-		# hidden layer 3
-		n_in = arch[2]*(((img_shape[0]-field_size[0]+1)/2-field_size[1]+1)/2)**2
-		W3_shape = (n_in,arch[3])
-		W3_bound = sqrt(6./(n_in+arch[3]))
+	# hidden layer 3
+	n_in = arch[2]*(((img_shape[0]-field_size[0]+1)/2-field_size[1]+1)/2)**2
+	W3_shape = (n_in,arch[3])
+	W3_bound = sqrt(6./(n_in+arch[3]))
+	if model_name is None:
 		W3 = theano.shared(
 			value=asarray(
 				rng.uniform(low=-W3_bound, high=W3_bound, size=W3_shape),
@@ -120,7 +121,10 @@ def train_convnet(
 			name='W3', borrow=True)
 		b3 = theano.shared(value=zeros((W3_shape[1],), dtype=theano.config.floatX),
 						   name='b3', borrow=True)
-		A3 = T.tanh(T.dot(A2.flatten(2),W3) + b3)
+	else:
+		W3 = theano.shared(value=W3v, name='W3',borrow=True)
+		b3 = theano.shared(value=b3v, name='b3',borrow=True)
+	A3 = T.tanh(T.dot(A2.flatten(2),W3) + b3)
 	
 	# mask for dropout
 	mask = T.cast(srng.binomial(n=1,p=p_dropout,size=(W3_shape[1],)), \
@@ -131,13 +135,17 @@ def train_convnet(
 	# logistic layer 4
 	W4_shape = (arch[3],arch[4])
 	W4_bound = sqrt(6./(arch[3]+arch[4]))
-	W4 = theano.shared(
-		value=asarray(
-			rng.uniform(low=-W4_bound, high=W4_bound, size=W4_shape),
-			dtype=theano.config.floatX),
-		name='W4', borrow=True)
-	b4 = theano.shared(value=zeros((W4_shape[1],), dtype=theano.config.floatX),
-					   name='b4', borrow=True)
+	if model_name is None:
+		W4 = theano.shared(
+			value=asarray(
+				rng.uniform(low=-W4_bound, high=W4_bound, size=W4_shape),
+				dtype=theano.config.floatX),
+			name='W4', borrow=True)
+		b4 = theano.shared(value=zeros((W4_shape[1],), dtype=theano.config.floatX),
+						   name='b4', borrow=True)
+	else:
+		W4 = theano.shared(value=W4v, name='W4',borrow=True)
+		b4 = theano.shared(value=b4v, name='b4',borrow=True)
 	
 	# outputs, cost, gradients
 	P_train = T.nnet.softmax(T.dot(A3_train, W4) + b4)
