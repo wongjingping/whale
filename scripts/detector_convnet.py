@@ -21,6 +21,7 @@ final = False
 
 # trains a le-net model
 def train_convnet(
+	model_name=None,
 	arch=(3,3,3,20,2), # input maps, C1 maps, C2 maps, MLP units, classes
 	img_shape=(100,100), field_size=(7,4), maxpool_size=(2,2),
 	r=0.03, d=0.005, p_dropout=0.5, epochs=250, batch_size=100, 
@@ -31,67 +32,97 @@ def train_convnet(
 	
 	print('... Building Model ...')
 	t_build = time()
-	
+
 	# symbolic variables
 	e = T.scalar('e', dtype='int32')	
 	i = T.scalar('i', dtype='int32')
 	x = T.matrix('x')
 	y = T.ivector('y')
+	
 	# batch_size, rgb channels, height, width
 	A0 = x.reshape((x.shape[0],)+img_shape+(arch[0],)).dimshuffle(0,3,1,2)
+
+	# check if loading previous model's weights	
+	if model_name is not None:
+		with open(model_name) as f:
+			model = load(f)
+		model_pars, model_arch, model_tune = model
+		arch, img_shape, field_size, maxpool_size = model_arch
+		C1_W = theano.shared(value=model_pars[0],name='C1_W')
+		C1_b = theano.shared(value=model_pars[1],name='C1_b')
+		C1 = conv.conv2d(input=A0, filters=C1_W)
+		M1 = downsample.max_pool_2d(
+			input=C1,
+			ds=(maxpool_size[0],maxpool_size[0]), 
+			ignore_border=True)
+		A1 = T.tanh(M1 + C1_b.reshape((1,)+C1_b.shape+(1,1,)))
+		C2_W = theano.shared(value=model_pars[2],name='C2_W')
+		C2_b = theano.shared(value=model_pars[3],name='C2_b')
+		C2 = conv.conv2d(input=A1, filters=C2_W)
+		M2 = downsample.max_pool_2d(
+			input=C2,
+			ds=(maxpool_size[0],maxpool_size[0]), 
+			ignore_border=True)
+		A2 = T.tanh(M2 + C2_b.reshape((1,)+C2_b.shape+(1,1,)))
+		W3, b3, W4, b4 = model_pars[4:8]
+		A3 = T.tanh(T.dot(A2.flatten(2),W3) + b3)
+	else:
+		# convolution layer 1
+		C1_shape = (arch[1],arch[0],field_size[0],field_size[0])
+		C1_bound = sqrt(6./((arch[0]+arch[1]/maxpool_size[0])*field_size[0]*field_size[0]))
+		C1_W = theano.shared(
+			value=asarray(
+				a=rng.uniform(low=-C1_bound, high=C1_bound, size=C1_shape),
+				dtype=theano.config.floatX),
+			name='C1_W')
+		C1_b = theano.shared(
+			value=zeros(shape=(arch[1],), dtype=theano.config.floatX),
+			name='C1_b')
+		C1 = conv.conv2d(input=A0, filters=C1_W)
+		
+		# max pool layer 1
+		M1 = downsample.max_pool_2d(
+			input=C1,
+			ds=(maxpool_size[0],maxpool_size[0]), 
+			ignore_border=True)
+		# tanh layer 1
+		A1 = T.tanh(M1 + C1_b.dimshuffle('x',0,'x','x'))
+		
+		# convolution layer 2
+		C2_shape = (arch[2],arch[1],field_size[1],field_size[1])
+		C2_bound = sqrt(6./((arch[1]+arch[2]/maxpool_size[1])*field_size[1]*field_size[1]))
+		C2_W = theano.shared(
+			value=asarray(
+				a=rng.uniform(low=-C2_bound, high=C2_bound, size=C2_shape),
+				dtype=theano.config.floatX),
+			name='C2_W')
+		C2_b = theano.shared(
+			value=zeros(shape=(arch[2],), dtype=theano.config.floatX),
+			name='C2_b')
+		C2 = conv.conv2d(input=A1, filters=C2_W)
+		
+		# max pool layer 2
+		M2 = downsample.max_pool_2d(
+			input=C2,
+			ds=(maxpool_size[1],maxpool_size[1]), 
+			ignore_border=True)
+		# tanh layer 2
+		A2 = T.tanh(M2 + C2_b.dimshuffle('x',0,'x','x'))
+		
+		# hidden layer 3
+		n_in = arch[2]*(((img_shape[0]-field_size[0]+1)/2-field_size[1]+1)/2)**2
+		W3_shape = (n_in,arch[3])
+		W3_bound = sqrt(6./(n_in+arch[3]))
+		W3 = theano.shared(
+			value=asarray(
+				rng.uniform(low=-W3_bound, high=W3_bound, size=W3_shape),
+				dtype=theano.config.floatX),
+			name='W3', borrow=True)
+		b3 = theano.shared(value=zeros((W3_shape[1],), dtype=theano.config.floatX),
+						   name='b3', borrow=True)
+		A3 = T.tanh(T.dot(A2.flatten(2),W3) + b3)
 	
-	# convolution layer 1
-	C1_shape = (arch[1],arch[0],field_size[0],field_size[0])
-	C1_bound = sqrt(6./((arch[0]+arch[1]/maxpool_size[0])*field_size[0]*field_size[0]))
-	C1_W = theano.shared(
-		value=asarray(
-			a=rng.uniform(low=-C1_bound, high=C1_bound, size=C1_shape),
-			dtype=theano.config.floatX),
-		name='C1_W')
-	C1_b = theano.shared(
-		value=zeros(shape=(arch[1],), dtype=theano.config.floatX),
-		name='C1_b')
-	C1 = conv.conv2d(input=A0, filters=C1_W)
-	
-	# max pool layer 1
-	M1 = downsample.max_pool_2d(
-		input=C1,
-		ds=(maxpool_size[0],maxpool_size[0]), 
-		ignore_border=True)
-	A1 = T.tanh(M1 + C1_b.dimshuffle('x',0,'x','x'))
-	
-	# convolution layer 2
-	C2_shape = (arch[2],arch[1],field_size[1],field_size[1])
-	C2_bound = sqrt(6./((arch[1]+arch[2]/maxpool_size[1])*field_size[1]*field_size[1]))
-	C2_W = theano.shared(
-		value=asarray(
-			a=rng.uniform(low=-C2_bound, high=C2_bound, size=C2_shape),
-			dtype=theano.config.floatX),
-		name='C2_W')
-	C2_b = theano.shared(
-		value=zeros(shape=(arch[2],), dtype=theano.config.floatX),
-		name='C2_b')
-	C2 = conv.conv2d(input=A1, filters=C2_W)
-	
-	# max pool layer 2
-	M2 = downsample.max_pool_2d(
-		input=C2,
-		ds=(maxpool_size[1],maxpool_size[1]), 
-		ignore_border=True)
-	A2 = T.tanh(M2 + C2_b.dimshuffle('x',0,'x','x'))
-	
-	# hidden layer 3
-	n_in = arch[2]*(((img_shape[0]-field_size[0]+1)/2-field_size[1]+1)/2)**2
-	W3_shape = (n_in,arch[3])
-	W3_bound = sqrt(6./(n_in+arch[3]))
-	W3 = theano.shared(
-		value=asarray(
-			rng.uniform(low=-W3_bound, high=W3_bound, size=W3_shape),
-			dtype=theano.config.floatX),
-		name='W3', borrow=True)
-	b3 = theano.shared(value=zeros((W3_shape[1],), dtype=theano.config.floatX),
-					   name='b3', borrow=True)
-	A3 = T.tanh(T.dot(A2.flatten(2),W3) + b3)
+	# mask for dropout
 	mask = T.cast(srng.binomial(n=1,p=p_dropout,size=(W3_shape[1],)), \
 	dtype=theano.config.floatX)
 	A3_train = A3 * mask
@@ -192,7 +223,6 @@ def train_convnet(
 
 
 
-# TODO not verified.
 def last_mile():
 	train_sgd = theano.function(
 		inputs=[e,i],
