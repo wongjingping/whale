@@ -1,6 +1,7 @@
 
 # this script builds a convnet for detecting if whale in thumb
 
+from imports import *
 
 arch = (3,3,3,20,2)
 img_shape = (100,100)

@@ -3,6 +3,8 @@
 from glob import glob
 import os
 import re
+import h5py
+import zipfile
 from cPickle import dump, load
 from time import time
 from PIL import Image

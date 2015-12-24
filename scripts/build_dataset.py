@@ -2,6 +2,7 @@
 # this script contains functions for automating 
 # the building of the right/wrong dataset
 
+from imports import *
 from detector_convnet import build_model
 
 path_img = '/Users/JP/Documents/whale/imgs/'

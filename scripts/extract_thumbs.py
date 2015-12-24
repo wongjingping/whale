@@ -2,6 +2,8 @@
 # this script extracts the thumbnails given the specified 
 # x and y coordinates from train.csv
 
+from imports import *
+
 path_img = '/Users/JP/Documents/whale/imgs/'
 path_img = '/Users/yc/Downloads/whale/imgs/'
 

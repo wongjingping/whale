@@ -2,7 +2,7 @@
 # this script prepares a dataset of 100x100x3 thumbnails
 # containing whales / not. 
 
-import imports
+from imports import *
 
 path_img = '/Users/JP/Documents/whale/imgs/'
 path_img = '/Users/yc/Downloads/whale/imgs/'
