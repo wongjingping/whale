@@ -1,167 +1,54 @@
 
+# this script builds a convnet for detecting if whale in thumb
+
 from imports import *
 
-
-# reads in data from thumbs/train folder
-# returns a list of matrices, chunk_size x 3 * w1 * h1
-def load_data(chunk_size=10000,p_test=0.3,w1=100,h1=100,save_chunks=True):
-	train = pd.read_csv(path_img+'data/train.csv')
-	freq = train.groupby('whaleID').size()
-	fnames = glob(path_img+'thumbs/train/whale_*/*.jpg')
-	nrow, ncol, nclass = len(fnames), w1 * h1 * 3, len(freq)
-	rng = RandomState(290615)
-	shuffled_idx = rng.permutation(range(nrow))
-	data = []
-	t_start = time()
-	# read data based on shuffled_idx
-	print('Reading %i files in chunks of %i' % (nrow,chunk_size))
-	for i in range(nrow):
-		# allocate chunk of memory
-		if i % chunk_size == 0:
-			chunk_nrow = min(nrow-i,chunk_size)
-			X = np.zeros((chunk_nrow,ncol),dtype=np.float64)
-			y = np.zeros((chunk_nrow,nclass),dtype=np.int32)
-		si = shuffled_idx[i]
-		im = Image.open(fnames[si])
-		ix = i % chunk_size
-		X[ix,] = asarray(im.resize((w1,h1))).ravel() / 255.
-		f_ = re.search('train/(whale_[0-9]*)/',fnames[si]).group(1)
-		y[ix,np.where(f_ == freq.index)[0][0]] = 1
-		# append chunk to data list
-		if (i+1) % chunk_size == 0 or i == (nrow-1):
-			chunk_i = ((i+1)/chunk_size)
-			break_i = int((1-p_test) * chunk_size)
-			X_train = asarray(X[:break_i,])
-			X_test = asarray(X[break_i:,])
-			y_train = asarray(y[:break_i])
-			y_test = asarray(y[break_i:])
-			data_chunk = ((X_train,y_train),(X_test,y_test))
-			if save_chunks:
-				chunk_fname = path_img+'data/chunk_'+str(chunk_i)+'.pkl'
-				print('Writing chunk %i to %s' % (chunk_i,chunk_fname))
-				with open(chunk_fname,'wb') as f:
-					dump(data_chunk,f)
-			else:
-				data.append(((X_train,y_train),(X_test,y_test)))
-			print('Finished with chunk %i' % chunk_i)
-		if i%1000 == 0:
-			print('Reading row %i' % i)
-	print('Reading took %.1fs' % (time()-t_start))
-	if not save_chunks:
-		return data
-
-# helper function for sharing data
-def make_shared(x,y):
-		x_shared = theano.shared(asarray(x, dtype=theano.config.floatX),
-			borrow=True)
-		y_shared = theano.shared(asarray(y, dtype=theano.config.floatX),
-			borrow=True)
-		return (x_shared, T.cast(y_shared,'int32'))
-
-# combine data in various chunks together
-
-
-
-### ==================== Layer Classes ==================== ###
-
-
-# builds and returns a convolution layer
-class layer_conv(object):
-	def __init__(self, x_in, W, shape, bound):
-		if W is None:
-			self.shape = shape
-			self.W = theano.shared(
-				value=asarray(
-					a=rng.uniform(low=-bound, high=bound, size=self.shape),
-					dtype=theano.config.floatX))
-		else:
-			self.W = theano.shared(value=W)
-		self.x_out = conv.conv2d(input=x_in, filters=self.W)
-
-# builds and returns a maxpool layer
-class layer_maxpool(object):
-	def __init__(self, x_in, poolsize, stride=None):
-		stride = poolsize if stride is None else stride
-		self.x_out = downsample.max_pool_2d(
-			input=x_in,
-			ds=(poolsize,poolsize), 
-			st=(stride,stride),
-			ignore_border=True)
-
-# builds and returns a relu layer
-class layer_relu(object):
-	def __init__(self, x_in):
-		self.x_out = x_in * (x_in > 0) # TODO update to theano's relu
-
-# builds and returns a fully-connected hidden layer
-class layer_fc(object):
-	def __init__(self, x_in, W, b, shape, bound):
-		if W is None:
-			self.shape = shape
-			self.W = theano.shared(
-				value=asarray(
-					rng.uniform(low=-bound, high=bound, size=shape),
-					dtype=theano.config.floatX))
-		else:
-			self.W = theano.shared(value=W)
-		if b is None:
-			self.b = theano.shared(value=zeros((shape[1],), dtype=theano.config.floatX))
-		else:
-			self.b = theano.shared(value=b)
-		self.x_out = T.dot(x_in,self.W) + self.b
+model_name = None
+arch = (3,5,5,500,447)
+img_shape = (100,100)
+field_size = (7,4)
+maxpool_size = (2,2)
+r = 0.03
+d = 0.005
+p_dropout = 1
+epochs = 250
+batch_size = 100
+rng = RandomState(seed=290615)
+srng = RandomStreams(seed=290615)
+chunk_size=1000
+i_train = 55000
+save_par = True
+print_freq = 1
+save_progress = True
+final = False
 
 
 
 
-# TODO re-write train_convnet to take in flexible architectures
-def train_flex_convnet(
-	arch,
-	img_shape=(100,100,3),
-	r=0.03, d=0.005, epochs=250, batch_size=100, 
+# trains a le-net model
+def train_convnet(
+	model_name=None,
+	arch=(3,3,3,20,2), # input maps, C1 maps, C2 maps, MLP units, classes
+	img_shape=(100,100), field_size=(7,4), maxpool_size=(2,2),
+	r=0.03, d=0.005, p_dropout=0.5, epochs=250, batch_size=100, 
 	rng=RandomState(290615), srng=RandomStreams(seed=290615),
+	chunk_size=1000,i_train=55000,
 	save_par=True, print_freq=1, save_progress=True, final=False):
-
-	n_batches = X_train.get_value().shape[0]/batch_size
 	
+	# shape input data
+	nrow, ncol, nclass = X_.shape[0], X_.shape[1], y_.shape[1]
+
 	print('... Building Model ...')
 	t_build = time()
 
 	# symbolic variables
-	e = T.scalar('e', dtype='int32')	
-	b = T.scalar('b', dtype='int32')
-	x = T.matrix('x')
-	y = T.ivector('y')
-	
+	e = T.scalar('e', dtype='int32')
+	i = T.scalar('i', dtype='int32')
+	x = T.matrix('x', dtype='float64')
+	y = T.imatrix('y')
+
 	# batch_size, rgb channels, height, width
-	x_in = x.reshape((x.shape[0],)+img_shape).dimshuffle(0,3,1,2)
-	layers_train = []
-	layers_test = []
-	pars = []
-	for i in range(len(arch)):
-		if arch[i][0] == 'conv':
-			n_filters, filter_size, channels = arch[i][1], arch[i][2], x_in.shape[1]
-			bound = sqrt(6./((channels+n_filters)*(filter_size**2)))
-			L = layer_conv(
-				x_in=x_in,
-				W=None,
-				shape=(n_filters,channels,filter_size,filter_size),
-				bound=bound)
-			pars.append(L.W)
-		elif arch[i][0] == 'maxpool':
-			L = layer_maxpool(x_in=x_in,poolsize=arch[i][1],stride=arch[i][2])
-		elif arch[i][0] == 'relu':
-			L = layer_relu(x_in=x_in)
-		elif arch[i][0] == 'fc':
-			L = layer_fc(x_in=x_in,W=None)
-		# mask for dropout
-		mask = T.cast(srng.binomial(n=1,p=arch[i][3],size=(L.shape,)), \
-		dtype=theano.config.floatX)
-		layers_train.append(L * mask)
-		layers_test.append(L * arch[i][3])
-		x_in = L.x_out
-
-
-	# TOCONTINUE
+	A0 = x.reshape((x.shape[0],)+img_shape+(arch[0],)).dimshuffle(0,3,1,2)
 
 	# check if loading previous model's weights	
 	if model_name is not None:
@@ -271,17 +158,22 @@ def train_flex_convnet(
 	# outputs, cost, gradients
 	P_train = T.nnet.softmax(T.dot(A3_train, W4) + b4)
 	P_test = T.nnet.softmax(T.dot(A3_test, W4) + b4)
+	y_obs = T.argmax(y, axis=1)
 	yhat_train = T.argmax(P_train, axis=1)
 	yhat_test = T.argmax(P_test, axis=1)
-	errors_train = T.mean(T.neq(yhat_train, y))
-	errors_test = T.mean(T.neq(yhat_test, y))
-	NLL_train = -T.mean(T.log(P_train)[T.arange(y.shape[0]), y])
-	NLL_test = -T.mean(T.log(P_test)[T.arange(y.shape[0]), y])
+	errors_train = T.mean(T.neq(yhat_train, y_obs))
+	errors_test = T.mean(T.neq(yhat_test, y_obs))
+	NLL_train = -T.mean(T.log(P_train)[T.arange(y.shape[0]), y_obs])
+	NLL_test = -T.mean(T.log(P_test)[T.arange(y.shape[0]), y_obs])
 	par_all = [C1_W,C1_b,C2_W,C2_b,W3,b3,W4,b4]
 	g_all = T.grad(cost=NLL_train, wrt=par_all)
 	lr = r/(d*e+1)
 	updates = [(par, par - lr * gpar) for (par, gpar) in zip(par_all,g_all)]
-	
+
+	X_train = theano.shared(asarray(X_[:chunk_size,],dtype=theano.config.floatX), \
+		borrow=True)
+	y_train = T.cast(theano.shared(y_[:chunk_size,],borrow=True),'int32')
+
 	train_sgd = theano.function(
 		inputs=[e,i],
 		outputs=[NLL_train,errors_train],
@@ -290,14 +182,18 @@ def train_flex_convnet(
 			x: X_train[i*batch_size:(i+1)*batch_size,],
 			y: y_train[i*batch_size:(i+1)*batch_size]
 		})
-		
+
+	# not enough memory ><
 	if not final:
+		X_test = theano.shared(asarray(X_[i_train:,],dtype=theano.config.floatX), \
+			borrow=True)
+		y_test = T.cast(theano.shared(y_[i_train:,],borrow=True),'int32')
 		test_model = theano.function(
 			inputs=[],
 			outputs=[NLL_test,errors_test],
 			givens={x: X_test, y: y_test}
 			)
-	
+
 	t_model = time()
 	print('%.1fs elapsed' % (t_model-t_build))
 	
@@ -305,13 +201,22 @@ def train_flex_convnet(
 	print('... Training Model ...')
 	e_min, it_min = 1., 0 
 	progress = zeros((epochs,4))
+	n_batches = i_train / batch_size
+	n_chunks = chunk_size / batch_size
 	for it in range(epochs):
 		t_e_start = time()
-		NLL_train, e_train = zeros(n_batches), zeros(n_batches)
+		NLL_train_v, e_train = zeros(n_batches), zeros(n_batches)
 		for b in range(n_batches):
-			NLL_train[b], e_train[b] = train_sgd(it, b)
+			if b % n_chunks == 0:
+				X_train = theano.shared(asarray(
+					X_[b*batch_size:b*batch_size+chunk_size,],
+					dtype=theano.config.floatX), \
+					borrow=True)
+				y_train = T.cast(theano.shared(
+					y_[b*batch_size:b*batch_size+chunk_size,],borrow=True),'int32')
+			NLL_train_v[b], e_train[b] = train_sgd(it, b % n_chunks)
 #			NLL_train[b], e_train[b], A3_b, A3_train_b, A3_test_b = train_sgd(it, b)
-		progress[it,0:2] = [mean(NLL_train),mean(e_train)]
+		progress[it,0:2] = [mean(NLL_train_v),mean(e_train)]
 		if not final:
 			[NLL_test, e_test] = test_model()
 			progress[it,2:4] = [NLL_test,e_test]
@@ -351,19 +256,31 @@ def train_flex_convnet(
 		return((e_min, it_min))
 
 
+
+
+
 if __name__ == 'main':
-
-	path_img = '/Users/JP/Documents/whale/imgs/'
-	path_img = '/Users/yc/Downloads/whale/imgs/'
+		
+#	path_img = '/Users/JP/Documents/whale/imgs/'
+#	path_img = '/Users/yc/Downloads/whale/imgs/'
 	path_img = '/home/jp/whale/imgs/'
+	
+	# load data
+	from load_hdf5 import *
+	if os.path.isfile(path_img+'data/data.hdf5'):
+		X_, y_ = load_classify_data(path_img+'data/data.hdf5')
+	else:
+		store_classify_data(chunk_size=1000,w1=100,h1=100)
+		X_, y_ = load_classify_data(path_img+'data/data.hdf5')
 
-	load_data(chunk_size=10000,p_test=0.3,w1=100,h1=100,save_chunks=True)
 
-	arch = [
-	('conv',10,3,0.5),('maxpool',2,2,1),('relu',None,None,0.5),
-	('conv',10,3,0.5),('maxpool',2,2,1),('relu',None,None,0.5),
-	('fc')]
-
-
-
+	# test dropout
+	p_drops = [1.0,0.7,0.5]
+	res = []
+	for p_drop in p_drops:
+		(e_min, it_min) = train_convnet(arch=(3,3,3,40,2), print_freq=1, p_dropout=p_drop)
+		res.append((e_min, it_min))
+	
+	arch = (3,3,3,20,2)
+	train_convnet(arch=arch, print_freq=10, final=True)
 
