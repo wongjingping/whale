@@ -7,7 +7,7 @@ def store_classify_data(chunk_size=1000,w1=100,h1=100):
 	train = pd.read_csv(path_img+'data/train.csv')
 	freq = train.groupby('whaleID').size()
 	fnames = glob(path_img+'thumbs/train/whale_*/*.jpg')
-	nrow, ncol, nclass = len(fnames), w1 * h1 * 3, len(freq)
+	nrow, ncol = len(fnames), w1 * h1 * 3
 	rng = RandomState(290615)
 	shuffled_idx = rng.permutation(range(nrow))
 	data = h5py.File(path_img+'data/data.hdf5','w')
@@ -20,9 +20,9 @@ def store_classify_data(chunk_size=1000,w1=100,h1=100):
 		chunks=(chunk_size,ncol))
 	y = data.create_dataset(
 		name='y',
-		shape=(nrow,nclass),
+		shape=(nrow,),
 		dtype='i16',
-		chunks=(chunk_size,nclass),
+		chunks=(chunk_size,),
 		fillvalue=0)
 
 	# read data based on shuffled_idx
@@ -31,7 +31,7 @@ def store_classify_data(chunk_size=1000,w1=100,h1=100):
 		im = Image.open(fnames[si])
 		f_ = re.search('train/(whale_[0-9]*)/',fnames[si]).group(1)
 		X[i,] = asarray(im.resize((w1,h1))).ravel() / 255.
-		y[i,np.where(f_ == freq.index)[0][0]] = 1
+		y[i] = np.where(f_ == freq.index)[0][0]
 		if i % chunk_size == 0:
 			print('Reading row %i' % i)
 	data.close()
