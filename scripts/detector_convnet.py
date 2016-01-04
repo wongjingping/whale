@@ -3,21 +3,25 @@
 
 from imports import *
 
-arch = (3,3,3,20,2)
+model_name=None
+arch = (3,3,3,30,2)
 img_shape = (100,100)
 field_size = (7,4)
 maxpool_size = (2,2)
 r = 0.03
 d = 0.005
-p_dropout = 1
-epochs = 250
+p_dropout = 0.5
+epochs = 20
 batch_size = 100
 rng = RandomState(seed=290615)
 srng = RandomStreams(seed=290615)
+chunk_size=1000
+i_train=70000
 save_par = True
 print_freq = 1
 save_progress = True
 final = False
+
 
 
 # trains a le-net model
@@ -25,21 +29,21 @@ def train_convnet(
 	model_name=None,
 	arch=(3,3,3,20,2), # input maps, C1 maps, C2 maps, MLP units, classes
 	img_shape=(100,100), field_size=(7,4), maxpool_size=(2,2),
-	r=0.03, d=0.005, p_dropout=0.5, epochs=250, batch_size=100, 
+	r=0.03, d=0.005, p_dropout=0.5, epochs=10, batch_size=100, 
 	rng=RandomState(290615), srng=RandomStreams(seed=290615),
+	chunk_size=1000, i_train=70000,
 	save_par=True, print_freq=1, save_progress=True, final=False):
 
-	n_batches = X_train.get_value().shape[0]/batch_size
-	
+
 	print('... Building Model ...')
 	t_build = time()
 
 	# symbolic variables
-	e = T.scalar('e', dtype='int32')	
+	e = T.scalar('e', dtype='int32')
 	i = T.scalar('i', dtype='int32')
-	x = T.matrix('x')
+	x = T.matrix('x', dtype='float64')
 	y = T.ivector('y')
-	
+
 	# batch_size, rgb channels, height, width
 	A0 = x.reshape((x.shape[0],)+img_shape+(arch[0],)).dimshuffle(0,3,1,2)
 
@@ -126,7 +130,7 @@ def train_convnet(
 		W3 = theano.shared(value=W3v, name='W3',borrow=True)
 		b3 = theano.shared(value=b3v, name='b3',borrow=True)
 	A3 = T.tanh(T.dot(A2.flatten(2),W3) + b3)
-	
+
 	# mask for dropout
 	mask = T.cast(srng.binomial(n=1,p=p_dropout,size=(W3_shape[1],)), \
 	dtype=theano.config.floatX)
@@ -161,7 +165,11 @@ def train_convnet(
 	g_all = T.grad(cost=NLL_train, wrt=par_all)
 	lr = r/(d*e+1)
 	updates = [(par, par - lr * gpar) for (par, gpar) in zip(par_all,g_all)]
-	
+
+	X_train = theano.shared(asarray(X_[:chunk_size,],dtype=theano.config.floatX), \
+		borrow=True)
+	y_train = T.cast(theano.shared(y_[:chunk_size],borrow=True),'int32')
+
 	train_sgd = theano.function(
 		inputs=[e,i],
 		outputs=[NLL_train,errors_train],
@@ -170,45 +178,58 @@ def train_convnet(
 			x: X_train[i*batch_size:(i+1)*batch_size,],
 			y: y_train[i*batch_size:(i+1)*batch_size]
 		})
-		
+
+	# not enough memory ><
 	if not final:
+		X_test = theano.shared(asarray(X_[i_train:,],dtype=theano.config.floatX), \
+			borrow=True)
+		y_test = T.cast(theano.shared(y_[i_train:,],borrow=True),'int32')
 		test_model = theano.function(
 			inputs=[],
 			outputs=[NLL_test,errors_test],
 			givens={x: X_test, y: y_test}
 			)
-	
+
 	t_model = time()
 	print('%.1fs elapsed' % (t_model-t_build))
-	
+
 	# train model
 	print('... Training Model ...')
 	e_min, it_min = 1., 0 
 	progress = zeros((epochs,4))
+	n_batches = i_train / batch_size
+	n_chunks = chunk_size / batch_size
 	for it in range(epochs):
 		t_e_start = time()
-		NLL_train, e_train = zeros(n_batches), zeros(n_batches)
+		NLL_train_v, e_train = zeros(n_batches), zeros(n_batches)
 		for b in range(n_batches):
-			NLL_train[b], e_train[b] = train_sgd(it, b)
-#			NLL_train[b], e_train[b], A3_b, A3_train_b, A3_test_b = train_sgd(it, b)
-		progress[it,0:2] = [mean(NLL_train),mean(e_train)]
+			if b % n_chunks == 0:
+				print(b)
+				X_train = theano.shared(asarray(
+					X_[b*batch_size:b*batch_size+chunk_size,],
+					dtype=theano.config.floatX), \
+					borrow=True)
+				y_train = T.cast(theano.shared(
+					y_[b*batch_size:b*batch_size+chunk_size,],borrow=True),'int32')
+			NLL_train_v[b], e_train[b] = train_sgd(it, b % n_chunks)
+		progress[it,0:2] = [mean(NLL_train_v),mean(e_train)]
 		if not final:
-			[NLL_test, e_test] = test_model()
-			progress[it,2:4] = [NLL_test,e_test]
+			[NLL_test_v, e_test] = test_model()
+			progress[it,2:4] = [NLL_test_v,e_test]
 			if e_test < e_min:
 				e_min, it_min = e_test, it
 		if it % print_freq == 0:
 			print('Epoch %i took %.1fs\n\tTrain NLL %.3f, error %.3f' % 
-				(it,time()-t_e_start,mean(NLL_train), mean(e_train)))
+				(it,time()-t_e_start, mean(NLL_train_v), mean(e_train)))
 			if not final:
-				print('\tTest  NLL %.3f, error %.3f' % (NLL_test, e_test))
+				print('\tTest  NLL %.3f, error %.3f' % (NLL_test_v, e_test))
 	t_train = time()
 	print('%.1f min elapsed' % ((t_train-t_model)/60))
 	if final:
 		print('Best result at epoch %i: %.4f' % (it_min, e_min))
 
 	# save model
-	print('... Saving Parameters ...')	
+	print('... Saving Parameters ...')
 	if save_par:
 		model_pars = [p.get_value() for p in par_all]
 		model_arch = (arch, img_shape, field_size, maxpool_size)
@@ -229,6 +250,7 @@ def train_convnet(
 		savetxt(path_img+fname, progress, delimiter=',', header=head)
 	if not final:
 		return((e_min, it_min))
+
 
 
 
@@ -307,22 +329,24 @@ def build_model(model, viz=False):
 
 if __name__ == 'main':
 		
-	path_img = '/Users/JP/Documents/whale/imgs/'
-#	path_img = '/Users/yc/Downloads/whale/imgs/'
+#	path_img = '/Users/JP/Documents/whale/imgs/'
+	path_img = '/Users/yc/Downloads/whale/imgs/'
+#	path_img = '/home/jp/whale/imgs/'
 	
 	# load data
-	from img_select import load_data
-	t_start = time()
-	(X_train,y_train),(X_test,y_test) = load_data()
-	t_data = time()
-	print('%.1fs elapsed' % (t_data-t_start))
+	from load_hdf5 import *
+	if not os.path.isfile(path_img+'select/detect.hdf5'):
+		store_detect_data(path_img+'select/detect.hdf5',chunk_size=1000,w1=100,h1=100)
+	data = h5py.File(path_img+'select/detect.hdf5','r')
+	X_, y_ = data['X'], data['y']
 
 	# test dropout
-	p_drops = [1.0,0.7,0.5]
-	res = []
-	for p_drop in p_drops:
-		(e_min, it_min) = train_convnet(arch=(3,3,3,40,2), print_freq=1, p_dropout=p_drop)
-		res.append((e_min, it_min))
+#	p_drops = [.5,.7,1.]
+#	res = []
+#	for p_drop in p_drops:
+#		(e_min, it_min) = train_convnet(arch=(3,3,3,20,2), print_freq=1, p_dropout=p_drop)
+#		res.append((e_min, it_min))
+
+	train_convnet(arch=(3,3,3,30,2), print_freq=1, epochs=20, p_dropout=0.5, final=False)
 	
-	arch = (3,3,3,20,2)
-	train_convnet(arch=arch, print_freq=10, final=True)
+	data.close()

@@ -263,11 +263,10 @@ if __name__ == '__main__':
 	
 	# load data
 	from load_hdf5 import *
-	if os.path.isfile(path_img+'data/data.hdf5'):
-		X_, y_ = load_classify_data(path_img+'data/data.hdf5')
-	else:
-		store_classify_data(chunk_size=1000,w1=100,h1=100)
-		X_, y_ = load_classify_data(path_img+'data/data.hdf5')
+	if not os.path.isfile(path_img+'data/detect.hdf5'):
+		store_classify_data(path_img+'data/detect.hdf5',chunk_size=1000,w1=100,h1=100)
+	data = h5py.File(path_img+'data/detect.hdf5','r')
+	X_, y_ = data['X'], data['y']
 
 
 	# test dropout
