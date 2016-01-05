@@ -14,7 +14,11 @@ if __name__ == '__main__':
 	# path_img = '/Users/yc/Downloads/whale/imgs/'
 	# path_img = '/home/jp/whale/imgs/'
 
-	[path1, path2] = sys.argv[1:3]
+	if sys.argv[1] is not None:
+		[path1, path2] = sys.argv[1:3]
+	else:
+		path1 = 'select/models/conv_3_3_3_20_2_0.03_0.005_250_200.pkl'
+		path2 = 'thumbs/models/conv_3_5_5_30_447_0.03_0.005_13_100_0.5.pkl'
 
 	# build models
 	from detector_convnet import build_model
