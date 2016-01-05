@@ -2,6 +2,7 @@
 
 from glob import glob
 import os
+import sys
 import re
 import h5py
 import zipfile
