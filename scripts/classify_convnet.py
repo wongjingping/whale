@@ -4,18 +4,18 @@
 from imports import *
 
 model_name = None
-arch = (3,5,5,200,447)
+arch = (3,3,3,30,447)
 img_shape = (100,100)
 field_size = (7,4)
 maxpool_size = (2,2)
 r = 0.03
 d = 0.005
 p_dropout = 0.5
-epochs = 10
+epochs = 15
 batch_size = 100
 rng = RandomState(seed=290615)
 srng = RandomStreams(seed=290615)
-chunk_size = 100
+chunk_size = 1000
 i_train = 55000
 save_par = True
 print_freq = 1
@@ -249,7 +249,7 @@ def train_convnet(
 		head = 'NLL_train,e_train,NLL_test,e_test'
 		savetxt(path_img+fname, progress, delimiter=',', header=head)
 	if not final:
-		return((e_min, it_min))
+		return(e_min, it_min)
 
 
 
@@ -257,26 +257,20 @@ def train_convnet(
 
 if __name__ == '__main__':
 		
-#	path_img = '/Users/JP/Documents/whale/imgs/'
-#	path_img = '/Users/yc/Downloads/whale/imgs/'
-	path_img = '/home/jp/whale/imgs/'
+	path_img = '/Users/JP/Documents/whale/imgs/'
+	# path_img = '/Users/yc/Downloads/whale/imgs/'
+	# path_img = '/home/jp/whale/imgs/'
 	
 	# load data
 	from load_hdf5 import *
-	if not os.path.isfile(path_img+'data/detect.hdf5'):
-		store_classify_data(path_img+'data/detect.hdf5',chunk_size=1000,w1=100,h1=100)
-	data = h5py.File(path_img+'data/detect.hdf5','r')
+	if not os.path.isfile(path_img+'data/data.hdf5'):
+		store_classify_data(path_img,chunk_size=1000,w1=100,h1=100)
+	data = h5py.File(path_img+'data/data.hdf5','r')
 	X_, y_ = data['X'], data['y']
 
 
-	# test dropout
-	p_drops = [0.5,0.7,1]
-	res = []
-	for p_drop in p_drops:
-		(e_min, it_min) = train_convnet(arch=(3,5,5,200,447), print_freq=1, p_dropout=p_drop)
-		res.append((e_min, it_min))
-	print(res)
-	
-	arch = (3,5,5,200,447)
-	train_convnet(arch=arch, print_freq=10, final=True)
+	# train model
+	e_min, it_min = train_convnet(arch=(3,5,5,30,447), 
+		print_freq=1, epochs=13, p_dropout=0.5)
+	print(e_min, it_min)
 

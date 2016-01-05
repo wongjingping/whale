@@ -12,7 +12,7 @@ def make_shared(x,y):
 
 
 # stores whale image data (detector) as a numpy array in hdf5 format
-def store_detect_data(path_hdf5,chunk_size=1000,w1=100,h1=100):
+def store_detect_data(path_img,chunk_size=1000,w1=100,h1=100):
 	
 	print('... Reading Input Matrix ...')
 	names_ok = glob(path_img+'select/right/*jpg')
@@ -25,7 +25,7 @@ def store_detect_data(path_hdf5,chunk_size=1000,w1=100,h1=100):
 	shuffled_idx = rng.permutation(range(nrow))
 	
 	t_start = time()
-	data = h5py.File(path_hdf5,'w')
+	data = h5py.File(path_img+'select/detect.hdf5','w')
 	X = data.create_dataset(
 		name='X',
 		shape=(nrow,ncol),
@@ -47,12 +47,12 @@ def store_detect_data(path_hdf5,chunk_size=1000,w1=100,h1=100):
 			print('Reading row %i' % i)
 	
 	data.close()
-	print('Saving to %s took %.1fs' % (path_hdf5, time()-t_start))
+	print('Saving to %s took %.1fs' % (path_img+'select/detect.hdf5', time()-t_start))
 
 
 
 # stores whale image data (classifier) as a numpy array in hdf5 format
-def store_classify_data(path_hdf5,chunk_size=1000,w1=100,h1=100):
+def store_classify_data(path_img,chunk_size=1000,w1=100,h1=100):
 
 	train = pd.read_csv(path_img+'data/train.csv')
 	freq = train.groupby('whaleID').size()
@@ -60,7 +60,7 @@ def store_classify_data(path_hdf5,chunk_size=1000,w1=100,h1=100):
 	nrow, ncol = len(fnames), w1 * h1 * 3
 	rng = RandomState(290615)
 	shuffled_idx = rng.permutation(range(nrow))
-	data = h5py.File(path_hdf5,'w')
+	data = h5py.File(path_img+'data/data.hdf5','w')
 
 	t_start = time()
 	X = data.create_dataset(
@@ -86,6 +86,6 @@ def store_classify_data(path_hdf5,chunk_size=1000,w1=100,h1=100):
 	data.close()
 	# with zipfile.ZipFile(path_img+'data/data_hdf5.zip','w') as z:
 	# 	z.write(path_img+'data/data.hdf5')
-	print('Saving to %s took %.1fs' % (path_hdf5,time()-t_start))
+	print('Saving to %s took %.1fs' % (path_img+'data/data.hdf5',time()-t_start))
 
 

@@ -336,7 +336,7 @@ if __name__ == 'main':
 	# load data
 	from load_hdf5 import *
 	if not os.path.isfile(path_img+'select/detect.hdf5'):
-		store_detect_data(path_img+'select/detect.hdf5',chunk_size=1000,w1=100,h1=100)
+		store_detect_data(path_img,chunk_size=1000,w1=100,h1=100)
 	data = h5py.File(path_img+'select/detect.hdf5','r')
 	X_, y_ = data['X'], data['y']
 
