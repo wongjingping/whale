@@ -36,7 +36,7 @@ if __name__ == '__main__':
 	window_len, x_step, y_step = 100, 10, 10
 	nx,ny = (w1-window_len)/x_step, (h1-window_len)/y_step
 
-	for idx in submit.index[12:1000]:
+	for idx in submit.index:
 		t_i = time()
 		w_ = submit['Image'][idx]
 		im = Image.open(path_img + 'raw/' + w_)
@@ -51,6 +51,8 @@ if __name__ == '__main__':
 		probs1 = detector(X).reshape(ny,nx)
 		x,y = (probs1.argmax()%nx)*x_step, (probs1.argmax()/nx)*y_step
 		im_crop = im_sml.crop((x,y,x+window_len,y+window_len))
+		w = re.search('(w_[0-9]*).jpg',w_).group(1)
+		im_crop.save('%sthumbs/test/%s_%i_%i.jpg' % (path_img,w,x,y))
 		x_crop = asarray(im_crop).ravel() / 255.
 		probs2 = classifier(x_crop.reshape((1,x_crop.shape[0])))
 		submit.iloc[idx,1:] = probs2.ravel()
