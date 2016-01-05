@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 
 # this script builds a convnet for detecting if whale in thumb
 
@@ -15,7 +16,7 @@ epochs = 15
 batch_size = 100
 rng = RandomState(seed=290615)
 srng = RandomStreams(seed=290615)
-chunk_size = 1000
+chunk_size = 2000
 i_train = 55000
 save_par = True
 print_freq = 1
@@ -114,7 +115,7 @@ def train_convnet(
 			ignore_border=True)
 		# tanh layer 2
 		A2 = T.tanh(M2 + C2_b.dimshuffle('x',0,'x','x'))
-		
+
 	# hidden layer 3
 	n_in = arch[2]*(((img_shape[0]-field_size[0]+1)/2-field_size[1]+1)/2)**2
 	W3_shape = (n_in,arch[3])
@@ -253,6 +254,40 @@ def train_convnet(
 
 
 
+# returns a predict function given model tuple defined in train_convnet
+def build_model(model, viz=False):
+	print('... Building Model ...')
+	model_pars, model_arch, model_tune = model
+	arch, img_shape, field_size, maxpool_size = model_arch
+	
+	x = T.matrix('x')
+	A0 = x.reshape((x.shape[0],)+img_shape+(arch[0],)).dimshuffle(0,3,1,2)
+	
+	C1_W, C1_b = model_pars[0:2]
+	C1 = conv.conv2d(input=A0, filters=C1_W)
+	M1 = downsample.max_pool_2d(
+		input=C1,
+		ds=(maxpool_size[0],maxpool_size[0]), 
+		ignore_border=True)
+	A1 = T.tanh(M1 + C1_b.reshape((1,)+C1_b.shape+(1,1,)))
+
+	C2_W, C2_b = model_pars[2:4]
+	C2 = conv.conv2d(input=A1, filters=C2_W)
+	M2 = downsample.max_pool_2d(
+		input=C2,
+		ds=(maxpool_size[0],maxpool_size[0]), 
+		ignore_border=True)
+	A2 = T.tanh(M2 + C2_b.reshape((1,)+C2_b.shape+(1,1,)))
+
+	W3, b3, W4, b4 = model_pars[4:8]
+	A3 = T.tanh(T.dot(A2.flatten(2),W3) + b3)
+	P = T.nnet.softmax(T.dot(A3, W4) + b4)
+
+	outs = [C1,M1,A1,C2,M2,A2,A3,P] if viz else P
+	predict = theano.function(inputs=[x],outputs=outs)
+	return(predict)
+
+
 
 
 if __name__ == '__main__':
@@ -260,7 +295,7 @@ if __name__ == '__main__':
 	path_img = '/Users/JP/Documents/whale/imgs/'
 	# path_img = '/Users/yc/Downloads/whale/imgs/'
 	# path_img = '/home/jp/whale/imgs/'
-	
+
 	# load data
 	from load_hdf5 import *
 	if not os.path.isfile(path_img+'data/data.hdf5'):

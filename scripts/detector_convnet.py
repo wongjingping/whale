@@ -327,7 +327,7 @@ def build_model(model, viz=False):
 
 
 
-if __name__ == 'main':
+if __name__ == '__main__':
 		
 #	path_img = '/Users/JP/Documents/whale/imgs/'
 	path_img = '/Users/yc/Downloads/whale/imgs/'
