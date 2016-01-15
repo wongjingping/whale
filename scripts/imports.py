@@ -4,6 +4,7 @@ from glob import glob
 import os
 import sys
 import re
+import json
 import h5py
 import zipfile
 from cPickle import dump, load
